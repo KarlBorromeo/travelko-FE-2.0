@@ -7,7 +7,7 @@ import { FaShareAlt, FaStar, FaMapMarkerAlt, FaClock, FaCalendarAlt } from "reac
 import { toast } from "react-toastify";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { TOUR_CATEGORIES, getCategoryImage, getCanonicalCategory } from "@/lib/categories";
+import { TOUR_CATEGORIES, getCategoryImage, getCanonicalCategory, hasCustomPictures } from "@/lib/categories";
 
 const normalize = (str = "") => String(str).trim().toLowerCase();
 
@@ -115,24 +115,26 @@ export default function ToursClient({ initialTours, initialCategory }) {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* ===== HERO COLLAGE ===== */}
-      <section className="relative h-[280px] md:h-[400px] w-full overflow-hidden">
-        {/* Image Collage Grid */}
-        <div className="grid grid-cols-2 h-full w-full max-w-7xl mx-auto">
-          <img src="/tour1.jpg" alt="Tour 1" className="w-full h-full object-cover" />
-          <img src="/tour2.png" alt="Tour 2" className="w-full h-full object-cover" />
-          <img src="/tour3.jpg" alt="Tour 3" className="w-full h-full object-cover" />
-          <img src="/tour4.jpg" alt="Tour 4" className="w-full h-full object-cover" />
-        </div>
-        {/* Dark overlay */}
-        <div className="absolute inset-0 bg-black/60 z-1" />
+      {/* ===== HERO BANNER ===== */}
+      <section className="relative h-[280px] md:h-[380px] w-full overflow-hidden flex items-center justify-center">
+        {/* Panoramic Landscape Header */}
+        <img
+          src="/tours-header.jpg"
+          alt="Explore Philippine Adventures"
+          className="absolute inset-0 w-full h-full object-cover object-center"
+        />
+        {/* Dark gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/30 z-1" />
         {/* Text */}
-        <div className="absolute inset-0 z-2 flex flex-col items-center justify-center text-center text-white px-4">
-          <h1 className="font-extrabold text-3xl md:text-5xl mb-2 tracking-tight">
+        <div className="relative z-2 flex flex-col items-center justify-center text-center text-white px-4 max-w-3xl">
+          <span className="text-primary text-xs md:text-sm font-bold tracking-widest uppercase mb-2">
+            Explore the Philippines
+          </span>
+          <h1 className="font-extrabold text-3xl md:text-5xl mb-3 tracking-tight">
             Discover Amazing Tours
           </h1>
-          <p className="text-gray-200 text-sm md:text-lg">
-            Find your perfect adventure with our expert coordinators
+          <p className="text-gray-200 text-sm md:text-base max-w-xl">
+            Find your perfect adventure with our expert local coordinators
           </p>
         </div>
       </section>
@@ -253,12 +255,19 @@ export default function ToursClient({ initialTours, initialCategory }) {
                       className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col md:flex-row h-fit md:h-64"
                     >
                       {/* Image */}
-                      <div className="relative w-full md:w-2/5 shrink-0 bg-gray-50 h-52 md:h-full">
+                      <div className="relative w-full md:w-2/5 shrink-0 bg-gray-50 h-52 md:h-full overflow-hidden">
                         <img
                           src={tour.pictureUrls?.[0] || getCategoryImage(tour.category)}
                           alt={tour.title}
-                          className="w-full h-full object-cover"
+                          className={`w-full h-full object-cover ${
+                            !hasCustomPictures(tour) ? "blur-[3px] scale-105" : ""
+                          }`}
                         />
+                        {!hasCustomPictures(tour) && (
+                          <span className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md text-white/90 text-[10px] px-2.5 py-0.5 rounded-full font-medium shadow-sm">
+                            Illustrative photo
+                          </span>
+                        )}
                       </div>
 
                       {/* Content details */}

@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { TOUR_CATEGORIES, getCategoryImage, getCanonicalCategory } from "@/lib/categories";
+import { TOUR_CATEGORIES, getCategoryImage, getCanonicalCategory, hasCustomPictures } from "@/lib/categories";
 import { FaMapMarkerAlt, FaList, FaStar, FaChevronRight, FaSearch } from "react-icons/fa";
 
 // Dynamically import MapComponent to disable server-side rendering (since Leaflet relies on browser APIs)
@@ -158,8 +158,15 @@ export default function MapClient({ tours = [] }) {
                     <img
                       src={tour.pictureUrls?.[0] || getCategoryImage(tour.category)}
                       alt={tour.title}
-                      className="w-full h-full object-cover"
+                      className={`w-full h-full object-cover ${
+                        !hasCustomPictures(tour) ? "blur-[3px] scale-105" : ""
+                      }`}
                     />
+                    {!hasCustomPictures(tour) && (
+                      <span className="absolute bottom-1.5 left-1.5 bg-black/60 backdrop-blur-md text-white/90 text-[9px] px-1.5 py-0.5 rounded font-medium shadow-sm leading-none">
+                        Illustrative
+                      </span>
+                    )}
                   </div>
 
                   {/* Tour details */}

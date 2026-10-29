@@ -133,3 +133,14 @@ export const getCategoryImage = (categoryName) => {
   const canonical = getCanonicalCategory(categoryName);
   return CATEGORY_IMAGE_MAP[canonical] || "/adventures/mountain-climbing.jpg";
 };
+
+/**
+ * Checks whether a tour has real coordinator-uploaded photos
+ */
+export const hasCustomPictures = (tour) => {
+  if (!tour || !Array.isArray(tour.pictureUrls) || tour.pictureUrls.length === 0) {
+    return false;
+  }
+  const first = tour.pictureUrls[0];
+  return typeof first === "string" && first.trim().length > 0;
+};

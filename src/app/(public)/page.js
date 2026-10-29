@@ -16,7 +16,7 @@ import {
 import TestimonialsCarousel from "@/components/TestimonialsCarousel";
 import { getApiUrl } from "@/lib/apiUtils";
 import { getSiteUrl } from "@/lib/siteUrl";
-import { getCategoryImage, getCanonicalCategory } from "@/lib/categories";
+import { getCategoryImage, getCanonicalCategory, hasCustomPictures } from "@/lib/categories";
 
 export const metadata = {
   title: {
@@ -203,8 +203,15 @@ export default async function HomePage() {
                     <img
                       src={tour.pictureUrls?.[0] || getCategoryImage(tour.category)}
                       alt={tour.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${
+                        !hasCustomPictures(tour) ? "blur-[3px] scale-105" : ""
+                      }`}
                     />
+                    {!hasCustomPictures(tour) && (
+                      <span className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md text-white/90 text-[10px] px-2.5 py-0.5 rounded-full font-medium shadow-sm">
+                        Illustrative photo
+                      </span>
+                    )}
                   </div>
 
                   {/* Card Body */}

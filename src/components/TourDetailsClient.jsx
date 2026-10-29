@@ -12,6 +12,7 @@ import {
   FaMapMarkerAlt,
   FaUser,
   FaCalendarAlt,
+  FaImage,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -22,7 +23,7 @@ import "swiper/css/pagination";
 import "swiper/css/navigation";
 import "swiper/css/zoom";
 import "swiper/css/thumbs";
-import { getCategoryImage, getCanonicalCategory } from "@/lib/categories";
+import { getCategoryImage, getCanonicalCategory, hasCustomPictures } from "@/lib/categories";
 
 const normalizeArray = (value) => {
   if (!value) return [];
@@ -118,15 +119,10 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
     }
   };
 
+  const hasPhotos = hasCustomPictures(tour);
   const categoryFallbackImage = getCategoryImage(tour.category);
-  const images = Array.isArray(tour.pictureUrls) && tour.pictureUrls.length > 0
-    ? tour.pictureUrls
-    : [categoryFallbackImage];
-
-  const heroImage =
-    images.length > 0 && typeof images[0] === "string" && (images[0].startsWith("http") || images[0].startsWith("/"))
-      ? images[0]
-      : categoryFallbackImage;
+  const images = hasPhotos ? tour.pictureUrls : [];
+  const heroImage = hasPhotos ? tour.pictureUrls[0] : categoryFallbackImage;
 
   const hasJoinerSlots = tour.joinerMaxSlots != null && !isNaN(Number(tour.joinerMaxSlots));
   const remainingSlots = hasJoinerSlots
@@ -137,15 +133,28 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
   return (
     <div className="flex flex-col min-h-screen">
       {/* ===== HERO HEAD ===== */}
-      <div
-        className="relative bg-cover bg-center py-24 text-white z-0 overflow-hidden"
-        style={{ backgroundImage: `url(${heroImage})` }}
-      >
-        <div className="absolute inset-0 bg-black/50 z-[-1]" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <Badge className="bg-primary hover:bg-brand-dark px-3 py-1.5 rounded-full text-xs font-bold mb-4 shadow-sm">
-            {getCanonicalCategory(tour.category)}
-          </Badge>
+      <div className="relative py-24 text-white z-0 overflow-hidden">
+        {/* Background photo with subtle blur for default/illustrative images */}
+        <div
+          className={`absolute inset-0 bg-cover bg-center transition-all ${
+            !hasPhotos ? "blur-[4px] scale-105" : ""
+          }`}
+          style={{ backgroundImage: `url(${heroImage})` }}
+        />
+        {/* Dark Overlay */}
+        <div className="absolute inset-0 bg-black/55 z-[-1]" />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-1">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <Badge className="bg-primary hover:bg-brand-dark px-3 py-1.5 rounded-full text-xs font-bold shadow-sm">
+              {getCanonicalCategory(tour.category)}
+            </Badge>
+            {!hasPhotos && (
+              <span className="bg-black/50 backdrop-blur-md border border-white/20 text-white/90 text-xs px-3 py-1 rounded-full font-medium inline-flex items-center gap-1.5 shadow-sm">
+                <FaImage className="text-white/70" size={11} /> Illustrative photo
+              </span>
+            )}
+          </div>
           <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4">
             {tour.title}
           </h1>
@@ -164,26 +173,38 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
         {/* ===== GALLERY CARD ===== */}
         <h2 className="font-extrabold text-xl text-gray-900 mb-4">Gallery</h2>
         <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm mb-10 max-w-xl">
-          <Swiper
-            modules={[Navigation, Pagination]}
-            spaceBetween={10}
-            slidesPerView={1}
-            navigation
-            pagination={{ clickable: true }}
-            onSlideChange={(swiper) => setActiveIndex(swiper.activeIndex)}
-            onClick={() => setShowGalleryModal(true)}
-            className="cursor-zoom-in rounded-xl"
-          >
-            {images.map((img, idx) => (
-              <SwiperSlide key={idx}>
-                <img
-                  src={img}
-                  alt={`${tour.title} - photo ${idx + 1}`}
-                  className="h-56 w-full object-cover rounded-xl"
-                />
-              </SwiperSlide>
-            ))}
-          </Swiper>
+          {hasPhotos ? (
+            <Swiper
+              modules={[Navigation, Pagination]}
+              spaceBetween={10}
+              slidesPerView={1}
+              navigation
+              pagination={{ clickable: true }}
+              onSlideChange={(swiper) => setActiveIndex(swiper.activeIndex)}
+              onClick={() => setShowGalleryModal(true)}
+              className="cursor-zoom-in rounded-xl"
+            >
+              {images.map((img, idx) => (
+                <SwiperSlide key={idx}>
+                  <img
+                    src={img}
+                    alt={`${tour.title} - photo ${idx + 1}`}
+                    className="h-56 w-full object-cover rounded-xl"
+                  />
+                </SwiperSlide>
+              ))}
+            </Swiper>
+          ) : (
+            <div className="h-48 rounded-xl bg-gray-50 border border-dashed border-gray-200 flex flex-col items-center justify-center text-center p-6">
+              <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-3">
+                <FaImage size={22} />
+              </div>
+              <p className="font-bold text-sm text-gray-800 mb-1">No Photos Uploaded Yet</p>
+              <p className="text-xs text-gray-500 max-w-xs">
+                The tour coordinator hasn&apos;t uploaded official photos for this destination yet.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* ===== DETAILS GRID ===== */}
@@ -448,7 +469,7 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
       </Dialog>
 
       {/* ===== GALLERY ZOOM DIALOG ===== */}
-      <Dialog open={showGalleryModal} onOpenChange={setShowGalleryModal}>
+      <Dialog open={hasPhotos && showGalleryModal} onOpenChange={setShowGalleryModal}>
         <DialogContent className="max-w-[92vw] md:max-w-4xl p-2 border-0 bg-black/95">
           {/* Main Swiper */}
           <Swiper
