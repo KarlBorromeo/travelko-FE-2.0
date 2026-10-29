@@ -16,6 +16,12 @@ import {
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { toast } from "react-toastify";
+import {
+  parseAvailableDates,
+  getTourTimeStatus,
+  getTourStatusBadgeClass,
+  formatTourDate,
+} from "@/lib/tourStatus";
 
 const normalizeToArray = (value) => {
   if (!value) return [];
@@ -76,24 +82,6 @@ export default function CoordinatorTours() {
   const [isEdit, setIsEdit] = useState(false);
   const [editingTourId, setEditingTourId] = useState(null);
 
-  const getTourTimeStatus = (tour) => {
-    const dates = parseAvailableDates(tour.availableDates);
-    if (!dates.length) return "draft";
-
-    const today = new Date();
-    const start = new Date(dates[0].start);
-    const end = new Date(dates[0].end);
-
-    today.setHours(0, 0, 0, 0);
-    start.setHours(0, 0, 0, 0);
-    end.setHours(0, 0, 0, 0);
-
-    if (today < start) return "upcoming";
-    if (today >= start && today <= end) return "ongoing";
-    if (today > end) return "completed";
-
-    return "draft";
-  };
 
   const toggleExpand = (id) => {
     setExpandedCards((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -130,25 +118,7 @@ export default function CoordinatorTours() {
     setOpen(true);
   };
 
-  const parseAvailableDates = (availableDates) => {
-    if (!Array.isArray(availableDates) || availableDates.length === 0)
-      return [];
-
-    const dates = availableDates
-      .map((d) => new Date(d))
-      .filter((d) => !isNaN(d.getTime()));
-
-    if (dates.length === 0) return [];
-
-    return [{ start: dates[0], end: dates[dates.length - 1] }];
-  };
-
-  const formatDate = (date) =>
-    date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+  const formatDate = formatTourDate;
 
   const resetForm = () => {
     setIsEdit(false);
@@ -452,18 +422,7 @@ export default function CoordinatorTours() {
     return Math.floor(diff / (1000 * 60 * 60 * 24)) + 1;
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "ongoing":
-        return "text-green-600 bg-green-50";
-      case "completed":
-        return "text-blue-600 bg-blue-50";
-      case "upcoming":
-        return "text-yellow-600 bg-yellow-50";
-      default:
-        return "text-gray-500 bg-gray-50";
-    }
-  };
+  const getStatusColor = getTourStatusBadgeClass;
 
   useEffect(() => {
     const days = getDaysBetween(startDate, endDate);
@@ -498,12 +457,13 @@ export default function CoordinatorTours() {
           <select
             value={tourFilter}
             onChange={(e) => setTourFilter(e.target.value)}
-            className="px-3.5 py-2 text-xs rounded-xl border border-gray-200 bg-white font-semibold text-gray-700 focus:outline-none"
+            className="px-3.5 py-2 text-xs rounded-xl border border-gray-200 bg-white font-semibold text-gray-700 focus:outline-none cursor-pointer"
           >
             <option value="all">All Packages</option>
             <option value="upcoming">Upcoming</option>
             <option value="ongoing">Ongoing</option>
             <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
           </select>
 
           <Button
@@ -541,7 +501,7 @@ export default function CoordinatorTours() {
                     </div>
 
                     <div className="flex gap-2 shrink-0">
-                      {/* Bug #5 Fixed: disabled aligns check on tourStatus instead of stale t.status */}
+                      {/* Disabled for ongoing, completed, and cancelled packages */}
                       <button
                         disabled={tourStatus !== "upcoming"}
                         onClick={() => handleEdit(t)}
@@ -550,7 +510,13 @@ export default function CoordinatorTours() {
                             ? "border-gray-200 text-gray-500 hover:bg-gray-50"
                             : "border-gray-100 text-gray-300 cursor-not-allowed"
                         }`}
-                        title={tourStatus !== "upcoming" ? "Only upcoming packages can be edited" : "Edit Package"}
+                        title={
+                          tourStatus === "cancelled"
+                            ? "Cancelled packages cannot be edited"
+                            : tourStatus !== "upcoming"
+                            ? "Only upcoming packages can be edited"
+                            : "Edit Package"
+                        }
                       >
                         <FaEdit size={13} />
                       </button>

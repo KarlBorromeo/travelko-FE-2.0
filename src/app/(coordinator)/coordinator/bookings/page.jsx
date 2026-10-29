@@ -57,7 +57,11 @@ export default function BookingsPage() {
 
         if (endpoint) {
           const res = await api.get(endpoint);
-          setStatuses(Array.isArray(res.data) ? res.data : []);
+          let list = Array.isArray(res.data) ? [...res.data] : [];
+          if (!list.map((s) => String(s).toLowerCase()).includes("cancelled")) {
+            list.push("cancelled");
+          }
+          setStatuses(list);
         } else {
           setStatuses([]);
         }
@@ -66,7 +70,7 @@ export default function BookingsPage() {
         const fallback =
           activeTab === "private"
             ? ["request", "approved", "cancelled", "rejected"]
-            : ["draft", "upcoming", "ongoing", "completed"];
+            : ["upcoming", "ongoing", "completed", "cancelled", "draft"];
         setStatuses(fallback);
       }
     };
@@ -116,17 +120,34 @@ export default function BookingsPage() {
 
       let normalized = [];
       if (activeTab === "joiner") {
-        normalized = data.map((tour) => ({
-          mode: "joiner",
-          tourId: tour.id,
-          tourTitle: tour.title || "—",
-          category: tour.category || "—",
-          joinerPrice: tour.joinerPrice || 0,
-          joinerBookedSlots: tour.joinerBookedSlots || 0,
-          joinerMaxSlots: tour.joinerMaxSlots || 0,
-          status: tour.status || "ongoing",
-          bookings: tour.bookings || [],
-        }));
+        normalized = data.map((tour) => {
+          const rawStatus = (tour.status || "").toLowerCase().trim();
+          const allBookingsCancelled =
+            Array.isArray(tour.bookings) &&
+            tour.bookings.length > 0 &&
+            tour.bookings.every(
+              (b) => (b.status || "").toLowerCase().trim() === "cancelled"
+            );
+
+          let computedStatus = "ongoing";
+          if (rawStatus === "cancelled" || rawStatus === "canceled" || allBookingsCancelled) {
+            computedStatus = "cancelled";
+          } else if (rawStatus) {
+            computedStatus = rawStatus;
+          }
+
+          return {
+            mode: "joiner",
+            tourId: tour.id,
+            tourTitle: tour.title || "—",
+            category: tour.category || "—",
+            joinerPrice: tour.joinerPrice || 0,
+            joinerBookedSlots: tour.joinerBookedSlots || 0,
+            joinerMaxSlots: tour.joinerMaxSlots || 0,
+            status: computedStatus,
+            bookings: tour.bookings || [],
+          };
+        });
       } else {
         normalized = data.map((b) => ({
           mode: "private",
@@ -318,13 +339,14 @@ export default function BookingsPage() {
     try {
       await api.patch(`/booking/cancel/${tourId}/joiners`, {});
 
-      // Bug #8 Fixed: dynamic update resets joinerBookedSlots back to 0 inside setBookings loop
+      // Update tour status to cancelled and joinerBookedSlots to 0
       setBookings((prev) =>
         prev.map((tour) =>
           tour.tourId === tourId
             ? {
                 ...tour,
                 joinerBookedSlots: 0,
+                status: "cancelled",
                 bookings: tour.bookings.map((b) => ({
                   ...b,
                   status: "cancelled",
@@ -550,11 +572,11 @@ export default function BookingsPage() {
                           View Clients
                         </button>
                         <button
-                          disabled={!tour.joinerBookedSlots}
+                          disabled={!tour.joinerBookedSlots || tour.status === "cancelled"}
                           onClick={() => cancelJoinerBookings(tour.tourId)}
                           className="px-3 py-1.5 text-xs font-bold bg-red-50 text-red-650 rounded-lg hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
                         >
-                          Cancel All Joiners
+                          {tour.status === "cancelled" ? "Cancelled" : "Cancel All Joiners"}
                         </button>
                       </div>
                     </td>

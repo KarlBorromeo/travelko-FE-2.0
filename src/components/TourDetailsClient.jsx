@@ -22,6 +22,7 @@ import "swiper/css/pagination";
 import "swiper/css/navigation";
 import "swiper/css/zoom";
 import "swiper/css/thumbs";
+import { getCategoryImage, getCanonicalCategory } from "@/lib/categories";
 
 const normalizeArray = (value) => {
   if (!value) return [];
@@ -81,14 +82,14 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
     }
 
     try {
-      await api.post(`reviews/${tourId}`, {
+      await api.post(`/reviews/${tourId}`, {
         fullName: reviewForm.fullName,
-        rating: String(reviewForm.rating),
+        rating: Number(reviewForm.rating),
         content: reviewForm.content,
       });
 
       // Refresh data
-      const res = await api.get(`tours/${tourId}`);
+      const res = await api.get(`/tours/${tourId}`);
       setTour((prev) => ({
         ...prev,
         reviews: Array.isArray(res.data.reviews) ? res.data.reviews : [],
@@ -117,11 +118,21 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
     }
   };
 
-  const images = tour.pictureUrls;
+  const categoryFallbackImage = getCategoryImage(tour.category);
+  const images = Array.isArray(tour.pictureUrls) && tour.pictureUrls.length > 0
+    ? tour.pictureUrls
+    : [categoryFallbackImage];
+
   const heroImage =
-    images.length > 0 && typeof images[0] === "string" && images[0].startsWith("http")
+    images.length > 0 && typeof images[0] === "string" && (images[0].startsWith("http") || images[0].startsWith("/"))
       ? images[0]
-      : "https://via.placeholder.com/1600x500?text=TravelKo+Adventure";
+      : categoryFallbackImage;
+
+  const hasJoinerSlots = tour.joinerMaxSlots != null && !isNaN(Number(tour.joinerMaxSlots));
+  const remainingSlots = hasJoinerSlots
+    ? Math.max(0, Number(tour.joinerMaxSlots) - Number(tour.joinerBookedSlots || 0))
+    : null;
+  const isSoldOut = remainingSlots !== null && remainingSlots <= 0;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -133,7 +144,7 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
         <div className="absolute inset-0 bg-black/50 z-[-1]" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
           <Badge className="bg-primary hover:bg-brand-dark px-3 py-1.5 rounded-full text-xs font-bold mb-4 shadow-sm">
-            {tour.category}
+            {getCanonicalCategory(tour.category)}
           </Badge>
           <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4">
             {tour.title}
@@ -151,7 +162,7 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* ===== GALLERY CARD ===== */}
-        <h4 className="font-extrabold text-xl text-gray-900 mb-4">Gallery</h4>
+        <h2 className="font-extrabold text-xl text-gray-900 mb-4">Gallery</h2>
         <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm mb-10 max-w-xl">
           <Swiper
             modules={[Navigation, Pagination]}
@@ -167,7 +178,7 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
               <SwiperSlide key={idx}>
                 <img
                   src={img}
-                  alt=""
+                  alt={`${tour.title} - photo ${idx + 1}`}
                   className="h-56 w-full object-cover rounded-xl"
                 />
               </SwiperSlide>
@@ -180,7 +191,7 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
           <div className="lg:col-span-2 space-y-10">
             {/* About this tour */}
             <div>
-              <h4 className="font-extrabold text-xl text-gray-900 mb-3">About this tour</h4>
+              <h2 className="font-extrabold text-xl text-gray-900 mb-3">About this tour</h2>
               <p className="text-gray-600 leading-relaxed text-sm md:text-base">
                 {tour.details}
               </p>
@@ -189,7 +200,7 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
             {/* Itinerary */}
             {tour.itinerary?.length > 0 && (
               <div>
-                <h4 className="font-extrabold text-xl text-gray-900 mb-4">Itinerary</h4>
+                <h2 className="font-extrabold text-xl text-gray-900 mb-4">Itinerary</h2>
                 <div className="space-y-3.5">
                   {tour.itinerary.map((item, idx) => (
                     <div key={idx} className="flex gap-4 items-start">
@@ -206,7 +217,7 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
             {/* What's Included / Things to Bring */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-gray-100 pt-8">
               <div>
-                <h5 className="font-bold text-gray-900 text-base mb-3">What&apos;s included</h5>
+                <h3 className="font-bold text-gray-900 text-base mb-3">What&apos;s included</h3>
                 <ul className="list-disc list-inside space-y-2 text-gray-600 text-sm">
                   {tour.packageInclusions?.map((i, idx) => (
                     <li key={idx} className="list-item">
@@ -217,7 +228,7 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
               </div>
 
               <div>
-                <h5 className="font-bold text-gray-900 text-base mb-3">Things to bring (Optional)</h5>
+                <h3 className="font-bold text-gray-900 text-base mb-3">Things to bring (Optional)</h3>
                 <ul className="list-disc list-inside space-y-2 text-gray-600 text-sm">
                   {tour.thingsToBring?.map((i, idx) => (
                     <li key={idx} className="list-item">
@@ -231,7 +242,7 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
             {/* Meetup Locations */}
             {tour.meetupLocations?.length > 0 && (
               <div className="border-t border-gray-100 pt-8">
-                <h4 className="font-extrabold text-xl text-gray-900 mb-3">Meetup Locations</h4>
+                <h2 className="font-extrabold text-xl text-gray-900 mb-3">Meetup Locations</h2>
                 <ul className="list-disc list-inside space-y-2 text-gray-600 text-sm">
                   {tour.meetupLocations.map((i, idx) => (
                     <li key={idx} className="list-item">
@@ -247,9 +258,9 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
           <aside className="space-y-6">
             {/* Coordinator box */}
             <div className="bg-white border border-gray-100 p-5 rounded-2xl shadow-sm">
-              <h4 className="font-extrabold text-gray-900 mb-4 pb-2 border-b border-gray-50">
+              <h2 className="font-extrabold text-gray-900 mb-4 pb-2 border-b border-gray-50">
                 Tour Coordinator
-              </h4>
+              </h2>
               <div className="flex items-center gap-3.5 mb-4">
                 <div className="w-11 h-11 bg-primary/10 rounded-full flex items-center justify-center text-primary text-lg">
                   <FaUser />
@@ -274,19 +285,46 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
             {/* Quick Actions */}
             <div className="bg-white border border-gray-100 p-5 rounded-2xl shadow-sm flex flex-col gap-3">
               <div className="text-center mb-2">
-                <span className="text-xs text-gray-450 block font-medium">Joiner Slots Left</span>
-                <span className="font-extrabold text-2xl text-primary">
-                  ₱{Number(tour.joinerPrice).toLocaleString()}
-                </span>
-                <span className="text-gray-500 text-xs font-semibold"> / pax</span>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="font-extrabold text-2xl text-primary">
+                    ₱{Number(tour.joinerPrice || 0).toLocaleString()}
+                  </span>
+                  <span className="text-gray-500 text-xs font-semibold"> / pax</span>
+                </div>
+
+                {hasJoinerSlots && (
+                  <div className="mt-2 flex items-center justify-center">
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                        isSoldOut
+                          ? "bg-red-50 text-red-600 border-red-200"
+                          : remainingSlots <= 3
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      }`}
+                    >
+                      {isSoldOut ? "Sold Out" : `${remainingSlots} joiner slots left`}
+                    </span>
+                  </div>
+                )}
               </div>
 
-              <Link
-                href={`/book?tourId=${tourId}`}
-                className="w-full py-3 bg-primary hover:bg-brand-dark text-white rounded-full font-bold text-sm text-center shadow-md select-none block"
-              >
-                Book Joiner Tour
-              </Link>
+              {isSoldOut ? (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full py-3 bg-gray-200 text-gray-400 rounded-full font-bold text-sm text-center cursor-not-allowed select-none block"
+                >
+                  Joiner Tour Full
+                </button>
+              ) : (
+                <Link
+                  href={`/book?tourId=${tourId}`}
+                  className="w-full py-3 bg-primary hover:bg-brand-dark text-white rounded-full font-bold text-sm text-center shadow-md select-none block"
+                >
+                  Book Joiner Tour
+                </Link>
+              )}
               <Link
                 href="/tours"
                 className="w-full py-3 border border-gray-200 text-gray-700 rounded-full font-bold text-sm text-center hover:bg-gray-50 transition-colors select-none block"
@@ -300,7 +338,7 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
         {/* ===== REVIEWS SLIDER ===== */}
         <div className="mt-14 border-t border-gray-100 pt-10">
           <div className="flex justify-between items-center mb-6">
-            <h4 className="font-extrabold text-xl text-gray-900">Reviews & Comments</h4>
+            <h2 className="font-extrabold text-xl text-gray-900">Reviews & Comments</h2>
             <Button
               onClick={() => setShowReviewModal(true)}
               className="rounded-xl px-4 py-2 text-xs font-bold cursor-pointer"
@@ -428,7 +466,7 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
                 <div className="swiper-zoom-container flex items-center justify-center">
                   <img
                     src={img}
-                    alt=""
+                    alt={`${tour.title} preview ${idx + 1}`}
                     className="max-h-full max-w-full object-contain"
                   />
                 </div>
@@ -449,7 +487,7 @@ export default function TourDetailsClient({ tour: initialTour, tourId }) {
               <SwiperSlide key={idx}>
                 <img
                   src={img}
-                  alt=""
+                  alt={`${tour.title} thumbnail ${idx + 1}`}
                   className="h-14 w-full object-cover rounded-lg border border-transparent hover:border-primary"
                 />
               </SwiperSlide>

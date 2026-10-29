@@ -14,6 +14,20 @@ import {
   FaMobileAlt,
 } from "react-icons/fa";
 import TestimonialsCarousel from "@/components/TestimonialsCarousel";
+import { getApiUrl } from "@/lib/apiUtils";
+import { getSiteUrl } from "@/lib/siteUrl";
+import { getCategoryImage, getCanonicalCategory } from "@/lib/categories";
+
+export const metadata = {
+  title: {
+    absolute: "TravelKo — Discover & Book Philippine Tours",
+  },
+  description:
+    "Explore breathtaking Philippine destinations, connect with experienced local coordinators, and book verified tours safely.",
+  alternates: {
+    canonical: "/",
+  },
+};
 
 const getDurationLabel = (availableDates) => {
   if (!Array.isArray(availableDates) || availableDates.length === 0)
@@ -47,25 +61,39 @@ export default async function HomePage() {
   // Single fetch call resolving Bug #3 (duplicate API calls)
   try {
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.travelko.site/"}tours`,
+      getApiUrl("/tours"),
       { next: { revalidate: 60 } } // ISR: refresh cache every 60 seconds
     );
     if (res.ok) {
       tours = await res.json();
-      featuredTours = tours.slice(0, 3);
+
+      // Deduplicate featured tours by title to prevent duplicate heading warnings
+      const seenTitles = new Set();
+      featuredTours = tours
+        .filter((tour) => {
+          if (!tour.title || seenTitles.has(tour.title)) return false;
+          seenTitles.add(tour.title);
+          return true;
+        })
+        .slice(0, 3);
+
+      if (featuredTours.length === 0) {
+        featuredTours = tours.slice(0, 3);
+      }
 
       // Build categories count dynamically
       const catMap = {};
       tours.forEach((tour) => {
         if (!tour.category) return;
-        if (!catMap[tour.category]) {
-          catMap[tour.category] = {
-            name: tour.category,
+        const canonical = getCanonicalCategory(tour.category);
+        if (!catMap[canonical]) {
+          catMap[canonical] = {
+            name: canonical,
             count: 0,
-            image: tour.pictureUrls?.[0] || "/tour1.jpg",
+            image: tour.pictureUrls?.[0] || getCategoryImage(canonical),
           };
         }
-        catMap[tour.category].count++;
+        catMap[canonical].count++;
       });
       categories = Object.values(catMap);
     }
@@ -73,8 +101,41 @@ export default async function HomePage() {
     console.error("Failed to fetch tours server-side", err);
   }
 
+  const siteUrl = getSiteUrl();
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": `${siteUrl}/#website`,
+        "url": siteUrl,
+        "name": "TravelKo",
+        "description":
+          "Book verified tours and adventures across the Philippines with trusted coordinators.",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": `${siteUrl}/tours?search={search_term_string}`,
+          "query-input": "required name=search_term_string",
+        },
+      },
+      {
+        "@type": "Organization",
+        "@id": `${siteUrl}/#organization`,
+        "name": "TravelKo",
+        "url": siteUrl,
+        "logo": `${siteUrl}/landingPage.png`,
+      },
+    ],
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
+      {/* Search Engine Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
       {/* ===== HERO SECTION with VIDEO BACKGROUND ===== */}
       <section className="relative h-[480px] md:h-[600px] w-full overflow-hidden flex items-center justify-center">
         {/* Background Video */}
@@ -132,15 +193,15 @@ export default async function HomePage() {
 
           {featuredTours.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {featuredTours.map((tour) => (
+              {featuredTours.map((tour, index) => (
                 <div
-                  key={tour._id || tour.id}
+                  key={`${tour._id || tour.id || 'featured'}-${index}`}
                   className="group bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full"
                 >
                   {/* Card Image */}
                   <div className="relative h-56 overflow-hidden bg-gray-100">
                     <img
-                      src={tour.pictureUrls?.[0] || "/tour1.jpg"}
+                      src={tour.pictureUrls?.[0] || getCategoryImage(tour.category)}
                       alt={tour.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
@@ -160,9 +221,10 @@ export default async function HomePage() {
                       <span>{getDurationLabel(tour.availableDates)}</span>
                     </div>
 
-                    {/* Private Booking Link (Bug #12 fixed: uses URL search parameters) */}
+                    {/* Private Booking Link (marked nofollow for parameterized query) */}
                     <Link
                       href={`/book?tourId=${tour._id || tour.id}&mode=private`}
+                      rel="nofollow"
                       className="text-primary font-semibold text-sm hover:underline mb-5 block"
                     >
                       Book a Private Tour »
@@ -181,15 +243,17 @@ export default async function HomePage() {
                       <div className="flex gap-2">
                         <Link
                           href={`/tours/details/${tour._id || tour.id}`}
+                          aria-label={`Book ${tour.title} now`}
                           className="px-3 py-2 text-xs font-bold bg-primary text-white rounded-lg hover:bg-brand-dark transition-colors"
                         >
-                          Book Now
+                          Book Tour
                         </Link>
                         <Link
                           href={`/tours/details/${tour._id || tour.id}`}
+                          aria-label={`View details for ${tour.title}`}
                           className="px-3 py-2 text-xs font-bold border border-primary text-primary rounded-lg hover:bg-brand-light transition-colors"
                         >
-                          Details
+                          View Details
                         </Link>
                       </div>
                     </div>
@@ -220,7 +284,7 @@ export default async function HomePage() {
               <div className="mx-auto w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary text-xl mb-4 group-hover:bg-primary group-hover:text-white transition-colors">
                 <FaSearch />
               </div>
-              <h4 className="font-bold text-gray-900 mb-2">Browse Adventures</h4>
+              <p className="font-bold text-gray-900 text-base mb-2">Browse Adventures</p>
               <p className="text-gray-500 text-sm leading-relaxed">
                 Explore our curated collection of tours, destinations, and activities.
               </p>
@@ -232,7 +296,7 @@ export default async function HomePage() {
               <div className="mx-auto w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary text-xl mb-4 group-hover:bg-primary group-hover:text-white transition-colors">
                 <FaHeart />
               </div>
-              <h4 className="font-bold text-gray-900 mb-2">Choose Experience</h4>
+              <p className="font-bold text-gray-900 text-base mb-2">Choose Experience</p>
               <p className="text-gray-500 text-sm leading-relaxed">
                 Select the perfect tour matching your schedule and interest.
               </p>
@@ -244,7 +308,7 @@ export default async function HomePage() {
               <div className="mx-auto w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary text-xl mb-4 group-hover:bg-primary group-hover:text-white transition-colors">
                 <FaShieldAlt />
               </div>
-              <h4 className="font-bold text-gray-900 mb-2">Secure Booking</h4>
+              <p className="font-bold text-gray-900 text-base mb-2">Secure Booking</p>
               <p className="text-gray-500 text-sm leading-relaxed">
                 Complete your details and finalize through our secure system.
               </p>
@@ -256,7 +320,7 @@ export default async function HomePage() {
               <div className="mx-auto w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary text-xl mb-4 group-hover:bg-primary group-hover:text-white transition-colors">
                 <FaMapMarkedAlt />
               </div>
-              <h4 className="font-bold text-gray-900 mb-2">Start Journey</h4>
+              <p className="font-bold text-gray-900 text-base mb-2">Start Journey</p>
               <p className="text-gray-500 text-sm leading-relaxed">
                 Receive instant confirmation details and join your trip safely.
               </p>
@@ -291,7 +355,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ===== ADVENTURE CATEGORIES (Bug #12 fixed: uses client navigation links) ===== */}
+      {/* ===== ADVENTURE CATEGORIES ===== */}
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
@@ -304,23 +368,25 @@ export default async function HomePage() {
               {categories.map((cat) => (
                 <Link
                   key={cat.name}
-                  href={`/tours?category=${cat.name}`}
+                  href={`/tours?category=${encodeURIComponent(cat.name)}`}
+                  rel="nofollow"
+                  aria-label={`Explore ${cat.name} tours`}
                   className="group bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:translate-y-[-2px] transition-all flex flex-col"
                 >
                   <div className="relative h-48 overflow-hidden bg-gray-50">
                     <img
                       src={cat.image}
-                      alt={cat.name}
+                      alt={`${cat.name} tours in the Philippines`}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                   </div>
                   <div className="p-4 text-center mt-auto">
-                    <h4 className="font-bold text-gray-900 mb-1">{cat.name}</h4>
+                    <p className="font-bold text-gray-900 text-base mb-1">{cat.name}</p>
                     <p className="text-gray-400 text-xs mb-3">
                       {cat.count} Tour{cat.count > 1 ? "s" : ""}
                     </p>
                     <span className="inline-block px-4 py-1.5 bg-primary text-white text-xs font-bold rounded-lg hover:bg-brand-dark transition-colors">
-                      View Tours
+                      Explore {cat.name}
                     </span>
                   </div>
                 </Link>
@@ -351,7 +417,7 @@ export default async function HomePage() {
             {/* Feat 1 */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center text-center">
               <FaCheckCircle className="text-primary text-3xl mb-3" />
-              <h5 className="font-bold text-gray-800 text-sm mb-2">Verified Host</h5>
+              <p className="font-bold text-gray-800 text-sm mb-2">Verified Host</p>
               <p className="text-gray-400 text-[11px] leading-relaxed">
                 Travel safely knowing coordinators are vetted and verified.
               </p>
@@ -359,7 +425,7 @@ export default async function HomePage() {
             {/* Feat 2 */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center text-center">
               <FaCreditCard className="text-primary text-3xl mb-3" />
-              <h5 className="font-bold text-gray-800 text-sm mb-2">Secure Pay</h5>
+              <p className="font-bold text-gray-800 text-sm mb-2">Secure Pay</p>
               <p className="text-gray-400 text-[11px] leading-relaxed">
                 Payments are securely managed for risk-free reservation.
               </p>
@@ -367,7 +433,7 @@ export default async function HomePage() {
             {/* Feat 3 */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center text-center">
               <FaClock className="text-primary text-3xl mb-3" />
-              <h5 className="font-bold text-gray-800 text-sm mb-2">24/7 Support</h5>
+              <p className="font-bold text-gray-800 text-sm mb-2">24/7 Support</p>
               <p className="text-gray-400 text-[11px] leading-relaxed">
                 Our support team is always online to help with your bookings.
               </p>
@@ -375,7 +441,7 @@ export default async function HomePage() {
             {/* Feat 4 */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center text-center">
               <FaMoneyBillWave className="text-primary text-3xl mb-3" />
-              <h5 className="font-bold text-gray-800 text-sm mb-2">Best Prices</h5>
+              <p className="font-bold text-gray-800 text-sm mb-2">Best Prices</p>
               <p className="text-gray-400 text-[11px] leading-relaxed">
                 Competitive transparent rates with no hidden fees.
               </p>
@@ -383,7 +449,7 @@ export default async function HomePage() {
             {/* Feat 5 */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center text-center">
               <FaTrophy className="text-primary text-3xl mb-3" />
-              <h5 className="font-bold text-gray-800 text-sm mb-2">Quality Tour</h5>
+              <p className="font-bold text-gray-800 text-sm mb-2">Quality Tour</p>
               <p className="text-gray-400 text-[11px] leading-relaxed">
                 Tour experiences are strictly monitored to ensure excellence.
               </p>
@@ -391,7 +457,7 @@ export default async function HomePage() {
             {/* Feat 6 */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center text-center">
               <FaMobileAlt className="text-primary text-3xl mb-3" />
-              <h5 className="font-bold text-gray-800 text-sm mb-2">Easy Reservation</h5>
+              <p className="font-bold text-gray-800 text-sm mb-2">Easy Reservation</p>
               <p className="text-gray-400 text-[11px] leading-relaxed">
                 Book instantly anywhere from any device in clicks.
               </p>

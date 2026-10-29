@@ -10,15 +10,22 @@ import { FaEye, FaSearch } from "react-icons/fa";
 import { toast } from "react-toastify";
 
 const computeJoinerTourStatus = (tour) => {
-  const statuses = tour.bookings.map((b) => b.status);
+  const rawStatus = (tour?.status || "").toLowerCase().trim();
+  if (rawStatus === "cancelled" || rawStatus === "canceled") return "cancelled";
+  if (rawStatus === "refunded") return "refunded";
+  if (rawStatus === "completed") return "completed";
 
-  if (statuses.every((s) => s === "cancelled")) return "cancelled";
-  if (statuses.every((s) => s === "refunded")) return "refunded";
-  if (statuses.some((s) => s === "refunded")) return "refunded";
-  if (statuses.every((s) => s === "completed")) return "completed";
-  if (statuses.every((s) => s === "paid")) return "paid";
+  const bookings = tour?.bookings || [];
+  if (bookings.length > 0) {
+    const statuses = bookings.map((b) => (b.status || "").toLowerCase().trim());
+    if (statuses.every((s) => s === "cancelled")) return "cancelled";
+    if (statuses.every((s) => s === "refunded")) return "refunded";
+    if (statuses.some((s) => s === "refunded")) return "refunded";
+    if (statuses.every((s) => s === "completed")) return "completed";
+    if (statuses.every((s) => s === "paid")) return "paid";
+  }
 
-  return "ongoing";
+  return rawStatus || "ongoing";
 };
 
 const getBadgeClass = (status) => {
@@ -96,7 +103,7 @@ export default function AdminBookingApplicationsPage() {
           tour: tour.title,
           participants: tour.joinerBookedSlots || 0,
           amount: tour.joinerPrice || 0,
-          status: tour.status || "ongoing",
+          status: computeJoinerTourStatus(tour),
           createdAt: tour.createdAt,
           raw: tour,
         }));

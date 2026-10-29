@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { TOUR_CATEGORIES, getCategoryImage, getCanonicalCategory } from "@/lib/categories";
 import { FaMapMarkerAlt, FaList, FaStar, FaChevronRight, FaSearch } from "react-icons/fa";
 
 // Dynamically import MapComponent to disable server-side rendering (since Leaflet relies on browser APIs)
@@ -43,11 +44,7 @@ const formatDate = (d) =>
 
 const CATEGORIES = [
   { id: "all", label: "All Adventures" },
-  { id: "Mountain", label: "Mountain" },
-  { id: "Island", label: "Island Hopping" },
-  { id: "Scuba", label: "Scuba Diving" },
-  { id: "Camping", label: "Camping" },
-  { id: "Hiking", label: "Hiking" },
+  ...TOUR_CATEGORIES.map((cat) => ({ id: cat, label: cat })),
 ];
 
 export default function MapClient({ tours = [] }) {
@@ -72,7 +69,15 @@ export default function MapClient({ tours = [] }) {
     }
 
     if (qCat && qCat !== "all") {
-      list = list.filter((t) => normalize(t.category).includes(qCat));
+      list = list.filter((t) => {
+        const canonical = normalize(getCanonicalCategory(t.category));
+        return (
+          canonical === qCat ||
+          canonical.includes(qCat) ||
+          normalize(t.category).includes(qCat) ||
+          qCat.includes(normalize(t.category))
+        );
+      });
     }
 
     return list;
@@ -151,7 +156,7 @@ export default function MapClient({ tours = [] }) {
                   {/* Thumbnail */}
                   <div className="w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-gray-100 relative">
                     <img
-                      src={tour.pictureUrls?.[0] || "/tour1.jpg"}
+                      src={tour.pictureUrls?.[0] || getCategoryImage(tour.category)}
                       alt={tour.title}
                       className="w-full h-full object-cover"
                     />
@@ -162,7 +167,7 @@ export default function MapClient({ tours = [] }) {
                     <div>
                       <div className="flex items-center justify-between gap-1 mb-1">
                         <span className="px-2 py-0.5 bg-brand-light text-primary text-[10px] font-bold rounded-md uppercase tracking-wider">
-                          {tour.category}
+                          {getCanonicalCategory(tour.category)}
                         </span>
                         <div className="flex items-center gap-0.5 text-xs font-semibold text-yellow-500">
                           <FaStar size={10} />

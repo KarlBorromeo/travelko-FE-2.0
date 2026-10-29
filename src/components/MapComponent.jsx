@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { getCategoryImage } from "@/lib/categories";
 
 // Helper to check for valid latitude/longitude
 const hasValidCoords = (tour) => {
@@ -87,7 +88,7 @@ export default function MapComponent({ tours, selectedTourId, onSelectTour }) {
       const isSelected = tour.id === selectedTourId || tour._id === selectedTourId;
       const markerIcon = createCustomIcon(tour.category, isSelected);
 
-      const picture = tour.pictureUrls?.[0] || "/tour1.jpg";
+      const picture = tour.pictureUrls?.[0] || getCategoryImage(tour.category);
       const price = Number(tour.joinerPrice).toLocaleString();
       const popupContent = `
         <div class="w-48 text-gray-800 font-sans p-1">

@@ -3,8 +3,11 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FaShareAlt, FaStar, FaMapMarkerAlt, FaClock } from "react-icons/fa";
+import { FaShareAlt, FaStar, FaMapMarkerAlt, FaClock, FaCalendarAlt } from "react-icons/fa";
 import { toast } from "react-toastify";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { TOUR_CATEGORIES, getCategoryImage, getCanonicalCategory } from "@/lib/categories";
 
 const normalize = (str = "") => String(str).trim().toLowerCase();
 
@@ -46,12 +49,13 @@ export default function ToursClient({ initialTours, initialCategory }) {
   const router = useRouter();
 
   // Filters State
-  const [date, setDate] = useState("");
+  const [dateRange, setDateRange] = useState([null, null]);
+  const [startDate, endDate] = dateRange;
   const [location, setLocation] = useState("");
   const [adventureType, setAdventureType] = useState(initialCategory || "all");
 
   const clearAll = () => {
-    setDate("");
+    setDateRange([null, null]);
     setLocation("");
     setAdventureType("all");
   };
@@ -61,29 +65,43 @@ export default function ToursClient({ initialTours, initialCategory }) {
 
     const qLocation = normalize(location);
     const qType = normalize(adventureType);
-    const qDate = normalize(date);
 
     if (qLocation) {
       list = list.filter((t) => normalize(t.address).includes(qLocation));
     }
 
     if (qType && qType !== "all") {
-      list = list.filter((t) => normalize(t.category).includes(qType));
+      list = list.filter((t) => {
+        const canonical = normalize(getCanonicalCategory(t.category));
+        return (
+          canonical === qType ||
+          canonical.includes(qType) ||
+          normalize(t.category).includes(qType) ||
+          qType.includes(normalize(t.category))
+        );
+      });
     }
 
-    if (qDate) {
+    if (startDate && endDate) {
       list = list.filter((t) => {
-        const parsed = parseAvailableDates(t.availableDates);
-        if (!parsed) return false;
+        if (!t.availableDates || t.availableDates.length === 0) return false;
 
-        const rangeText =
-          `${formatDate(parsed.start)} ${formatDate(parsed.end)}`.toLowerCase();
-        return rangeText.includes(qDate);
+        const searchStart = new Date(startDate);
+        searchStart.setHours(0, 0, 0, 0);
+
+        const searchEnd = new Date(endDate);
+        searchEnd.setHours(23, 59, 59, 999);
+
+        return t.availableDates.some((dateStr) => {
+          const tourDate = new Date(dateStr);
+          tourDate.setHours(0, 0, 0, 0);
+          return tourDate >= searchStart && tourDate <= searchEnd;
+        });
       });
     }
 
     return list;
-  }, [initialTours, location, adventureType, date]);
+  }, [initialTours, location, adventureType, startDate, endDate]);
 
   const copyTourLink = async (tourId) => {
     const url = `${window.location.origin}/tours/details/${tourId}`;
@@ -127,7 +145,7 @@ export default function ToursClient({ initialTours, initialCategory }) {
             <aside className="w-full lg:w-1/4 shrink-0 lg:sticky lg:top-24 h-fit">
               <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
                 <div className="flex justify-between items-center mb-5 border-b border-gray-50 pb-3">
-                  <h6 className="font-bold text-gray-900">Search Tours</h6>
+                  <h2 className="font-bold text-gray-900 text-sm">Search Tours</h2>
                   <button
                     onClick={clearAll}
                     className="text-primary text-xs font-semibold hover:underline focus:outline-none cursor-pointer"
@@ -142,16 +160,22 @@ export default function ToursClient({ initialTours, initialCategory }) {
                     <label className="block text-xs font-semibold text-gray-500 mb-1.5">
                       Search by Date
                     </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. May 1 - May 15"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder-gray-400"
-                    />
-                    <span className="text-[10px] text-gray-450 block mt-1">
-                      Format: Month Day – Month Day
-                    </span>
+                    <div className="relative">
+                      <DatePicker
+                        selectsRange
+                        startDate={startDate}
+                        endDate={endDate}
+                        onChange={(update) => setDateRange(update)}
+                        placeholderText="Select date range"
+                        className="w-full pl-9 pr-3.5 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder-gray-400"
+                        dateFormat="MMM d, yyyy"
+                        isClearable={true}
+                        wrapperClassName="w-full"
+                      />
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                        <FaCalendarAlt size={14} />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Location Input */}
@@ -197,11 +221,11 @@ export default function ToursClient({ initialTours, initialCategory }) {
                       className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-gray-700 bg-white"
                     >
                       <option value="all">All Types</option>
-                      <option value="Mountain">Mountain Climbing</option>
-                      <option value="Island">Island Hopping</option>
-                      <option value="Scuba">Scuba Diving</option>
-                      <option value="Camping">Camping</option>
-                      <option value="Hiking">Hiking</option>
+                      {TOUR_CATEGORIES.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -220,18 +244,18 @@ export default function ToursClient({ initialTours, initialCategory }) {
               </div>
 
               <div className="space-y-6">
-                {filteredTours.map((tour) => {
+                {filteredTours.map((tour, index) => {
                   const dates = parseAvailableDates(tour.availableDates);
 
                   return (
                     <div
-                      key={tour._id || tour.id}
+                      key={`${tour._id || tour.id || 'tour'}-${index}`}
                       className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col md:flex-row h-fit md:h-64"
                     >
                       {/* Image */}
                       <div className="relative w-full md:w-2/5 shrink-0 bg-gray-50 h-52 md:h-full">
                         <img
-                          src={tour.pictureUrls?.[0] || "/tour1.jpg"}
+                          src={tour.pictureUrls?.[0] || getCategoryImage(tour.category)}
                           alt={tour.title}
                           className="w-full h-full object-cover"
                         />
@@ -241,7 +265,7 @@ export default function ToursClient({ initialTours, initialCategory }) {
                       <div className="p-5 flex flex-col flex-1 min-w-0 h-full">
                         <div className="flex items-center justify-between mb-2">
                           <span className="px-2.5 py-1 bg-brand-light text-primary text-xs font-bold rounded-lg leading-none">
-                            {tour.category}
+                            {getCanonicalCategory(tour.category)}
                           </span>
 
                           <div className="flex items-center gap-1.5">
